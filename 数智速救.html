@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>青春救援·AI伤情识别</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f5; 
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #e53e3e;
+            color: white;
+            padding: 20px 15px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header h1 { font-size: 24px; margin-bottom: 5px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .container { flex: 1; padding: 20px 15px; max-width: 600px; margin: 0 auto; width: 100%; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .camera-btn {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 16px 20px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(229,62,62,0.3);
+        }
+        .camera-btn:active { opacity: 0.9; transform: scale(0.98); }
+        .preview-area {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 15px;
+            background: #fafafa;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-area img {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .preview-area .hint { color: #999; font-size: 14px; }
+        .result-box {
+            background: #f0f7ff;
+            border-left: 4px solid #e53e3e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .result-title { font-weight: bold; margin-bottom: 8px; color: #333; }
+        .result-item { 
+            padding: 6px 0; 
+            border-bottom: 1px solid #e0e0e0; 
+            display: flex; 
+            justify-content: space-between;
+        }
+        .result-item:last-child { border-bottom: none; }
+        .tag { 
+            background: #e53e3e; 
+            color: white; 
+            padding: 2px 8px; 
+            border-radius: 16px; 
+            font-size: 12px; 
+            margin-left: 8px; 
+        }
+        .footer {
+            background: white;
+            padding: 12px;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #eee;
+        }
+        .disclaimer {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+        .loading { color: #e53e3e; font-weight: bold; margin: 10px 0; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🆘 青春救援·AI伤情识别</h1>
+        <p>拍照识别伤口类型，获取急救指导</p >
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <button class="camera-btn" id="takePhotoBtn">
+                📸 拍照识别伤情
+            </button>
+            <input type="file" id="imageInput" accept="image/*" capture="environment" style="display: none;">
+            
+            <div class="preview-area" id="previewArea">
+                <div class="hint" id="previewHint">点击上方按钮拍摄伤口照片</div>
+                < img id="previewImage" src="" style="display: none;">
+            </div>
+            
+            <div id="loading" class="loading hidden">⏳ AI正在识别中...</div>
+            
+            <div id="resultContainer" class="result-box" style="display: none;">
+                <div class="result-title">🔍 识别结果：</div>
+                <div id="resultList"></div>
+                <div style="margin-top: 10px; font-size: 13px; color: #666;">
+                    👉 根据识别结果，建议查看公众号相关急救教程
+                </div>
+            </div>
+            
+            <div class="disclaimer">
+                ⚠️ 本识别结果仅供参考，紧急情况请立即拨打120并联系现场急救人员
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        © 青春救援 · 让急救知识触手可及
+    </div>
+
+    <script>
+        // ========== 请在这里填入你的百度AI密钥 ==========
+        const API_KEY = 'hIiVp9TzF1IGMhWrSPTbqmX8';      // 替换成你的API Key
+        const SECRET_KEY = 'PtVYrNGIZAHs8GOE4Wt0IoHvXNyrUBDy'; // 替换成你的Secret Key
+        // ============================================
+        
+        let accessToken = '';
+        
+        // 页面加载时获取access_token
+        async function getAccessToken() {
+            try {
+                const url = 'https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=' + API_KEY + '&client_secret=' + SECRET_KEY;
+                const response = await fetch(url, { method: 'POST' });
+                const data = await response.json();
+                accessToken = data.access_token;
+                console.log('Access Token获取成功');
+            } catch (error) {
+                console.error('获取Access Token失败', error);
+                alert('API配置错误，请检查API Key和Secret Key');
+            }
+        }
+        
+        // 页面加载立即获取token
+        if (API_KEY !== '你的API Key' && SECRET_KEY !== '你的Secret Key') {
+            getAccessToken();
+        } else {
+            alert('请先在代码中填写你的百度AI API Key和Secret Key');
+        }
+        
+        // 拍照按钮点击事件
+        document.getElementById('takePhotoBtn').addEventListener('click', function() {
+            document.getElementById('imageInput').click();
+        });
+        
+        // 选择图片后处理
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const previewImg = document.getElementById('previewImage');
+                previewImg.src = ev.target.result;
+                previewImg.style.display = 'block';
+                document.getElementById('previewHint').style.display = 'none';
+                
+                // 调用AI识别
+                recognizeImage(file);
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // 调用百度AI识别
+        async function recognizeImage(file) {
+            if (!accessToken) {
+                alert('正在获取API凭证，请稍后重试');
+                return;
+            }
+            
+            // 显示加载
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('resultContainer').style.display = 'none';
+            
+            try {
+                // 将图片转为base64
+                const base64 = await fileToBase64(file);
+                // 去掉base64头信息（如data:image/jpeg;base64,）
+                const base64Data = base64.split(',')[1];
+                
+                // 调用百度AI通用物体识别API
+                const url = 'https://aip.baidubce.com/rest/2.0/image-classify/v2/advanced_general?access_token=' + accessToken;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: 'image=' + encodeURIComponent(base64Data)
+                });
+                
+                const result = await response.json();
+                console.log('识别结果', result);
+                
+                // 显示结果
+                if (result.result && result.result.length > 0) {
+                    displayResults(result.result);
+                } else {
+                    document.getElementById('resultList').innerHTML = '<div style="color: #999;">未识别出明显伤情，请尝试重新拍摄</div>';
+                    document.getElementById('resultContainer').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('识别失败', error);
+                document.getElementById('resultList').innerHTML = '<div style="color: #e53e3e;">识别失败，请稍后重试</div>';
+                document.getElementById('resultContainer').style.display = 'block';
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+        
+        // 文件转base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // 显示识别结果
+        function displayResults(results) {
+            const resultList = document.getElementById('resultList');
+            let html = '';
+            
+            // 取前5个结果
+            results.slice(0, 5).forEach(item => {
+                const confidence = (item.score * 100).toFixed(1);
+                html += `
+                    <div class="result-item">
+                        <span>${item.keyword}</span>
+                        <span>${confidence}%</span>
+                    </div>
+                `;
+            });
+            
+            // 根据识别结果给出急救建议提示
+            let suggestion = '';
+            const keywords = results.map(r => r.keyword.toLowerCase());
+            
+            if (keywords.some(k => k.includes('血') || k.includes('wound') || k.includes('cut'))) {
+                suggestion = '⚠️ 检测到可能出血，建议查看公众号“止血包扎”教程';
+            } else if (keywords.some(k => k.includes('burn') || k.includes('烫') || k.includes('火'))) {
+                suggestion = '⚠️ 检测到可能烧烫伤，建议查看公众号“烫伤处理”教程';
+            } else if (keywords.some(k => k.includes('骨折') || k.includes('fracture') || k.includes('骨'))) {
+                suggestion = '⚠️ 检测到可能骨折，建议查看公众号“骨折固定”教程';
+            }
+            
+            if (suggestion) {
+                html += `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc; color: #e53e3e;">${suggestion}</div>`;
+            }
+            
+            resultList.innerHTML = html;
+            document.getElementById('resultContainer').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
